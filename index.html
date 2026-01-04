@@ -80,7 +80,9 @@
         
         /* Offer Canvas Styling */
         .offer-canvas-container {
-            border: 4px solid #e5e5e5;
+            border-width: 4px;
+            border-style: solid;
+            border-color: #cbd5e1; /* default like Tailwind slate-300 */
             border-radius: 1rem;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
             position: relative;
@@ -88,6 +90,11 @@
             background: white;
             min-height: 550px; 
             transition: all 0.25s ease; 
+
+        /* Status-Rahmenfarben auch im SCREEN erzwingen (sonst überschreibt die Basis-Definition alles -> wirkt grau) */
+        .offer-canvas-container.border-red-500{ border-color:#ef4444 !important; }
+        .offer-canvas-container.border-green-500{ border-color:#22c55e !important; }
+        .offer-canvas-container.border-slate-300{ border-color:#cbd5e1 !important; }
         }
         
         .canvas-lines {
@@ -95,7 +102,7 @@
             top: 0; left: 0; right: 0; bottom: 0;
             background-image: repeating-linear-gradient(to bottom, transparent, transparent 19px, #cbd5e1 20px);
             pointer-events: none;
-            z-index: 1; 
+            z-index: 2; 
         }
         
         .drawing-canvas { position: relative; z-index: 3; }
@@ -141,9 +148,12 @@
     
 
     
-    /* iOS/Safari: Canvas wird im Druck oft schwarz -> nutze Snapshot-IMGs */
-    .drawing-canvas{ display:none !important; visibility:hidden !important; opacity:0 !important; background:#ffffff !important; }
-    .print-canvas-snapshot{ display:block !important; visibility:visible !important; opacity:1 !important; }
+    
+    /* Default: Snapshot-IMGs im Print ausblenden (nur iPad Safe-Mode zeigt sie) */
+    .print-canvas-snapshot{ display:none !important; visibility:hidden !important; opacity:0 !important; }
+/* iPadOS/WebKit: Canvas wird im Druck oft schwarz -> nutze Snapshot-IMGs (nur im iPad Safe-Mode) */
+    html.ios-print .drawing-canvas{ display:none !important; visibility:hidden !important; opacity:0 !important; background:#ffffff !important; }
+    html.ios-print .print-canvas-snapshot{ display:block !important; visibility:visible !important; opacity:1 !important; }
 
     /* Exakt 2 Seiten erzwingen: feste Content-Box (A4 landscape minus 5mm Ränder) */
     .situation-view-wrapper,
@@ -155,6 +165,16 @@
         overflow: hidden !important;
         box-sizing: border-box !important;
     }
+    /* iPadOS/WebKit: minimal kleiner, um 3. Seite durch Rundungs-Overflow zu verhindern */
+    html.ios-print .print-offer-view{
+        width: 285mm !important;
+        height: 198mm !important;
+        max-width: 285mm !important;
+        max-height: 198mm !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
     /* Safari/iOS: Filter im Print deaktivieren (sonst können Farben „verfälscht“/reduziert wirken) */
     html {
         -webkit-filter: none !important;
@@ -469,7 +489,7 @@ html, body {
     /* ---- PRINT: Seite 2 Layout-Optimierung (Angebote größer, Kostenblock minimal) ---- */
     /* 3 Angebots-Canvas deutlich höher (ca. doppelt) */
     .print-offer-view .offer-canvas-container{
-        min-height: 550px !important; /* ~2x gegenüber 260px */
+        min-height: 420px !important;/* iPad: verhindert Seite 3 */ /* ~2x gegenüber 260px */
         margin-bottom: 10px !important;
     }
 
@@ -1365,6 +1385,9 @@ html, body {
                     const waitForPaint = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
                     const prevView = view;
 
+                    // iPadOS: aktiviere Safe-Print-CSS auch für das PDF-Rendereing (damit PDF = iPad-Druck)
+                    if (isIPadOS) document.documentElement.classList.add('ios-print');
+
                     // Ziel: PDF soll optisch exakt so wirken wie "Browser -> Drucken".
                     // html2canvas rendert standardmäßig Screen-CSS. Daher injizieren wir im Clone
                     // die vorhandenen @media print Regeln als @media all (wirksam auch für Screen).
@@ -1496,9 +1519,12 @@ html, body {
                         setTimeout(() => URL.revokeObjectURL(url), 3000);
                         triggerToast('Teilen nicht unterstützt – PDF wurde heruntergeladen.');
                     }
+
+                    if (isIPadOS) document.documentElement.classList.remove('ios-print');
                 } catch (error) {
                     console.error('PDF Share Fehler:', error);
                     triggerToast('PDF-Share fehlgeschlagen.');
+                    if (isIPadOS) document.documentElement.classList.remove('ios-print');
                 }
             };
 
@@ -1722,11 +1748,37 @@ html, body {
                 document.querySelectorAll('img.print-canvas-snapshot[data-print-snapshot="1"]').forEach(el => el.remove());
             };
 
-window.addEventListener('beforeprint', () => { ensurePrintHeaders(); preparePrintCanvasSnapshots(); });
+const isIPadOS = (() => {
+                // iPadOS 13+: meldet sich oft als "MacIntel" + Touchpoints
+                const ua = navigator.userAgent || '';
+                const platform = navigator.platform || '';
+                const maxTP = navigator.maxTouchPoints || 0;
+                const isiPad = /iPad/.test(ua) || (platform === 'MacIntel' && maxTP > 1);
+                // Wir behandeln iPadOS als "Apple WebKit Print Stack" (Safari/Chrome/Edge auf iPad verhalten sich gleich)
+                return isiPad;
+            })();
+
+            window.addEventListener('beforeprint', () => {
+                ensurePrintHeaders();
+                if (isIPadOS) {
+                    document.documentElement.classList.add('ios-print');
+                    preparePrintCanvasSnapshots(); // Snapshot-IMGs (weiß) statt Canvas -> kein Schwarz
+                } else {
+                    document.documentElement.classList.remove('ios-print');
+                    // keine Snapshots nötig (Android/Windows/Mac drucken Canvas meist korrekt)
+                }
+            });
             window.addEventListener('afterprint', () => {
                 document.querySelectorAll('.print-page-header').forEach(el => el.remove());
-                cleanupPrintCanvasSnapshots();
+                if (isIPadOS) {
+                    cleanupPrintCanvasSnapshots();
+                    document.documentElement.classList.remove('ios-print');
+                } else {
+                    // Safety: falls doch Snapshots existieren (z.B. durch PDF Share), aufräumen
+                    cleanupPrintCanvasSnapshots();
+                }
             });
+
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
