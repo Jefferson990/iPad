@@ -156,7 +156,16 @@
     html.ios-print .print-canvas-snapshot{ display:block !important; visibility:visible !important; opacity:1 !important; }
 
     /* Exakt 2 Seiten erzwingen: feste Content-Box (A4 landscape minus 5mm Ränder) */
-    .situation-view-wrapper,
+    .situation-view-wrapper{
+        /* iPad/Browser Print rounding-safety: etwas schmäler/kleiner, damit Seite 1 nicht auf Seite 2 "anschnippt" */
+        width: 284mm !important;
+        height: 195mm !important;
+        max-width: 284mm !important;
+        max-height: 195mm !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
     .print-offer-view{
         width: 287mm !important;
         height: 200mm !important;
@@ -165,6 +174,15 @@
         overflow: hidden !important;
         box-sizing: border-box !important;
     }
+
+    /* Kleine Tablets (z.B. iPad 9,7") bekommen minimal mehr Kompression */
+    html.print-small .situation-view-wrapper{
+        width: 282mm !important;
+        height: 194mm !important;
+        max-width: 282mm !important;
+        max-height: 194mm !important;
+    }
+
     /* iPadOS/WebKit: minimal kleiner, um 3. Seite durch Rundungs-Overflow zu verhindern */
     html.ios-print .print-offer-view{
         width: 285mm !important;
@@ -182,6 +200,17 @@
     }
 
     /* Sicherheit: Hintergrundfarben/Gradienten wirklich behalten */
+    /* iPad/WebKit Print: Transparenz in Gradients kann schwarz werden -> Linien explizit auf Weiß rendern */
+    .canvas-lines{
+        background-color: #ffffff !important;
+        background-image: repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,1),
+            rgba(255,255,255,1) 19px,
+            #e2e8f0 20px
+        ) !important;
+    }
+
     html, body, #root {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1760,6 +1789,15 @@ const isIPadOS = (() => {
 
             window.addEventListener('beforeprint', () => {
                 ensurePrintHeaders();
+
+                // --- Device detection (Print Tuning) ---
+                const ua = navigator.userAgent || '';
+                const isAndroid = /Android/i.test(ua);
+                const minSide = Math.min(screen.width || 9999, screen.height || 9999);
+                document.documentElement.classList.toggle('android-print', isAndroid);
+                document.documentElement.classList.toggle('print-small', minSide <= 800);
+                document.documentElement.classList.toggle('print-large', minSide > 800);
+
                 if (isIPadOS) {
                     document.documentElement.classList.add('ios-print');
                     preparePrintCanvasSnapshots(); // Snapshot-IMGs (weiß) statt Canvas -> kein Schwarz
