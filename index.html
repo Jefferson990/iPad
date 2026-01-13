@@ -668,6 +668,24 @@ html, body {
         overflow:hidden !important;
     }
 
+
+/* ===== SHARE PDF: Intro/Outro vertikal sauber & besser gefüllt ===== */
+body.pdf-share-mode .share-page-content > .share-cover{
+  height:100% !important;
+  min-height:100% !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+body.pdf-share-mode .share-page-content > .share-cover .share-cover-inner{
+  transform: scale(1.06) !important;
+  transform-origin: center !important;
+}
+/* Outro: keine Folgeseite erzwingen */
+body.pdf-share-mode .share-page:last-child{
+  page-break-after:auto !important;
+  break-after:auto !important;
+}
 }
 
 
@@ -764,10 +782,6 @@ html, body {
 .share-outro-link{font-size:9px;word-break:break-all;color:rgba(255,255,255,0.65);margin-top:6px;font-weight:800;}
 .share-outro-amount{margin-top:6px;font-size:44px;font-weight:1000;color:#93c5fd;}
 .share-outro-voucher{margin-top:10px;padding:12px 10px;border:2px dashed rgba(255,255,255,0.35);border-radius:18px;font-family:monospace;font-size:16px;font-weight:1000;background:rgba(0,0,0,0.18);letter-spacing:0.12em;}
-
-    doc.head.appendChild(styleEl);
-
-
 /* ===== MANUELLER SHARE OFFSET (FINAL) ===== */
 :root{
   --SHARE_OFFSET_X: 0px; /* + = rechts | - = links */
@@ -2568,6 +2582,7 @@ const SHARE_PAGE_WIDTH_PX  = 1122; // Share-safe width (A4 landscape @ 96dpi) //
 const SHARE_PAGE_HEIGHT_PX = 794;
 const SHARE_DOC_WIDTH_PX   = SHARE_PAGE_WIDTH_PX;
 const SHARE_SAFE_SCALE     = 1.0; // keep size; CSS share-mode adds its own safety // extra safety to prevent any right-edge clipping
+const SHARE_OFFSET_Y_PX  = 0; // Share: keep at 0 (prevents page-cut) // Share: pushes PDF content down (px). Increase if top is too tight.
 
     try { if (typeof ensurePrintHeaders === 'function') ensurePrintHeaders(); } catch(e){}
 
@@ -2603,10 +2618,28 @@ const SHARE_SAFE_SCALE     = 1.0; // keep size; CSS share-mode adds its own safe
          html{height:auto;}
          /* Share-Modus: Header sichtbar, keine doppelten Links-Offsets innerhalb der Views */
          .pdf-share-mode .print-page-header{display:flex !important;}
-         /* Share: eigene Seitensteuerung (verhindert Leer-Seiten durch Print-Pagebreaks) */
-         .pdf-share-mode .situation-view-wrapper{break-after:auto !important; page-break-after:auto !important;}
-         .pdf-share-mode .print-offer-view{break-after:auto !important; page-break-after:auto !important;}
-         .pdf-share-mode .share-page{break-after:page; page-break-after:always;}
+         /* Share: eigene Seitensteuerung (verhindert Leer-Seiten durch doppelte Pagebreaks) */
+         body.pdf-share-mode .situation-view-wrapper,
+         body.pdf-share-mode .print-offer-view,
+         body.pdf-share-mode .share-cover,
+         body.pdf-share-mode .share-outro{
+           break-after:auto !important;
+           page-break-after:auto !important;
+         }
+         /* Optional: falls irgendwo legacy page-break-before gesetzt ist */
+         body.pdf-share-mode .situation-view-wrapper,
+         body.pdf-share-mode .print-offer-view,
+         body.pdf-share-mode .share-cover,
+         body.pdf-share-mode .share-outro{
+           break-before:auto !important;
+           page-break-before:auto !important;
+         }
+
+.pdf-share-mode .share-page{break-after:page; page-break-after:always; width:297mm; max-width:297mm; height:210mm; min-height:210mm; max-height:210mm; display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden;}
+         .pdf-share-mode .share-page-header{flex:0 0 16mm; height:16mm; min-height:16mm; max-height:16mm; box-sizing:border-box;}
+         .pdf-share-mode .share-page-content{flex:1 1 auto; min-height:0; height:calc(210mm - 16mm); overflow:hidden; box-sizing:border-box;}
+         .pdf-share-mode .share-cover,.pdf-share-mode .share-outro{height:100% !important; min-height:100% !important; max-height:100% !important; box-sizing:border-box;}
+
          .pdf-share-mode .share-page:last-child{break-after:auto !important; page-break-after:auto !important;}
          .pdf-share-mode .situation-view-wrapper{padding-left: 0px !important; padding-top:0 !important; margin-left:0 !important;}
          .pdf-share-mode .print-offer-view{padding-left:0 !important; padding-top:0 !important; margin-left:0 !important;}
@@ -2655,7 +2688,55 @@ const SHARE_SAFE_SCALE     = 1.0; // keep size; CSS share-mode adds its own safe
            max-width:77mm !important;
          }
 
-         /* ===== Share: Seitenzähler (nur im Share-Iframe) ===== */
+         
+         /* --- FINAL 4-SEITEN SHARE (TEILEN) --- */
+/* Seite 3 (Angebot+Kosten) kompakt halten, damit nichts in eine 5. Seite läuft */
+.pdf-share-mode .print-offer-view{
+  display:flex !important;
+  flex-direction:column !important;
+  zoom:0.78 !important;
+  height:210mm !important;
+  min-height:210mm !important;
+  max-height:210mm !important;
+  overflow:hidden !important;
+}
+.pdf-share-mode .print-offer-view .offer-canvas-container{
+  min-height:420px !important;
+  max-height:420px !important;
+  margin-bottom:8px !important;
+  break-inside:avoid !important;
+}
+.pdf-share-mode .print-offer-view .cost-overview-print{
+  padding:8px 10px !important;
+  margin-top:0 !important;
+  break-inside:avoid !important;
+}
+.pdf-share-mode .cost-grid-years{
+  display:grid !important;
+  grid-template-columns:repeat(3, 1fr) !important;
+  gap:6px !important;
+}
+
+/* Seite 4: Full-Bleed Outro (ohne Header) */
+.pdf-share-mode .share-outro{
+  width:297mm !important;
+  height:210mm !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:center !important;
+  overflow:hidden !important;
+}
+.pdf-share-mode .share-outro .print-page-header{ display:none !important; }
+
+/* Harte Trennung erzwingen (falls irgendwo legacy-breaks fehlen) */
+         .pdf-share-mode .pdf-page-break{
+           break-after:page !important;
+           page-break-after:always !important;
+         }
+
+/* ===== Share: Seitenzähler (nur im Share-Iframe) ===== */
          .pdf-share-mode .share-page{position:relative !important;}
          .pdf-share-mode .share-page-number{
            position:absolute !important;
@@ -2726,12 +2807,27 @@ const makeShareHeader = (titleText) => {
     return h;
 };
 
-const wrapSharePage = (titleText, contentEl) => {
+const wrapSharePage = (titleText, contentEl, opts = {}) => {
     const page = doc.createElement('div');
     page.className = 'share-page';
-    page.style.cssText = 'width:100%;box-sizing:border-box;overflow:hidden;height:auto;';
-    page.appendChild(makeShareHeader(titleText));
-    page.appendChild(contentEl);
+    // WICHTIG: feste A4-Landscape-Seitengröße im Share-PDF (inline wins!)
+    page.style.cssText = 'width:297mm;max-width:297mm;height:210mm;min-height:210mm;max-height:210mm;box-sizing:border-box;overflow:hidden;';
+    const includeHeader = !(opts && opts.includeHeader === false);
+    if (includeHeader) {
+        const header = makeShareHeader(titleText);
+        header.classList.add('share-page-header');
+        page.appendChild(header);
+    }
+
+    const contentWrap = doc.createElement('div');
+    contentWrap.className = 'share-page-content';
+    // Inhalt darf nie "in die nächste Seite laufen"
+    contentWrap.style.cssText = includeHeader
+        ? 'flex:1 1 auto;min-height:0;height:calc(210mm - 16mm);overflow:hidden;box-sizing:border-box;'
+        : 'flex:1 1 auto;min-height:0;height:210mm;overflow:hidden;box-sizing:border-box;';
+    contentWrap.appendChild(contentEl);
+
+    page.appendChild(contentWrap);
     return page;
 };
 
@@ -2741,8 +2837,9 @@ try { cloneSituation.classList.remove('hidden'); } catch(e){}
 cloneSituation.querySelectorAll('.print-page-header').forEach(n => n.remove());
 cloneSituation.querySelectorAll('#pdf-share-overlay,.print-hide-toast').forEach(n => n.remove());
 cloneSituation.style.display = 'flex';
-cloneSituation.style.height = 'auto';
-cloneSituation.style.overflow = 'visible';
+cloneSituation.style.height = '100%';
+cloneSituation.style.maxHeight = '100%';
+cloneSituation.style.overflow = 'hidden';
 
 // --- Share: COVER + OUTRO (nur beim Teilen, nicht beim Drucken) ---
 const pad2 = (n) => String(n).padStart(2,'0');
@@ -2822,24 +2919,49 @@ const makeOutroContent = () => {
 };
 
 // Cover als erste Seite
-const coverPage = wrapSharePage('Ihre Angebotsmappe', makeCoverContent());
+const coverPage = wrapSharePage('Ihre Angebotsmappe', makeCoverContent(), { includeHeader: false });
 stage.appendChild(coverPage);
 
 const page1 = wrapSharePage('Ihre Aktuelle Situation', cloneSituation);
 stage.appendChild(page1);
 
-const cloneOffer = sourceOffer.cloneNode(true);
-cloneOffer.querySelectorAll('.print-page-header').forEach(n => n.remove());
-cloneOffer.querySelectorAll('#pdf-share-overlay,.print-hide-toast').forEach(n => n.remove());
-cloneOffer.style.display = 'block';
-cloneOffer.style.height = 'auto';
-cloneOffer.style.overflow = 'visible';
+// Angebot klonen (FINAL v7: Kostenübersicht wandert auf Seite 4 nach ganz oben)
+const cloneOfferAll = sourceOffer.cloneNode(true);
+cloneOfferAll.querySelectorAll('.print-page-header').forEach(n => n.remove());
+cloneOfferAll.querySelectorAll('#pdf-share-overlay,.print-hide-toast').forEach(n => n.remove());
+cloneOfferAll.style.display = 'block';
+cloneOfferAll.style.height = '100%';
+cloneOfferAll.style.maxHeight = '100%';
+cloneOfferAll.style.overflow = 'hidden';
 
-const page2 = wrapSharePage('Ihr Persönliches Angebot', cloneOffer);
+// ✅ Kostenübersicht aus Seite 3 entfernen und für Seite 4 aufheben
+let costBlock = null;
+try {
+    costBlock = cloneOfferAll.querySelector('.cost-overview-print');
+    if (costBlock) costBlock.remove();
+} catch(e){}
+
+// Seite 3: Angebot OHNE Kosten
+const page2 = wrapSharePage('Ihr Persönliches Angebot', cloneOfferAll);
 stage.appendChild(page2);
 
-// Outro als letzte Seite
-const outroPage = wrapSharePage('Danke & Bonus', makeOutroContent());
+// Seite 4: Kostenübersicht & Abschluss ganz oben + danach der blaue Bereich
+const outroContentWrap = doc.createElement('div');
+outroContentWrap.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;gap:16px;box-sizing:border-box;overflow:hidden;';
+
+if (costBlock) {
+    // Kostenblock oben (weiß), kompakt und ohne Umbruch
+    costBlock.style.display = 'block';
+    costBlock.style.breakInside = 'avoid';
+    costBlock.style.pageBreakInside = 'avoid';
+    costBlock.style.margin = '0';
+    outroContentWrap.appendChild(costBlock);
+}
+
+outroContentWrap.appendChild(makeOutroContent());
+
+// Outro als letzte Seite (ohne Header)
+const outroPage = wrapSharePage('Danke & Bonus', outroContentWrap, { includeHeader: false });
 stage.appendChild(outroPage);
 
 // ===== Share: Seitenzähler „Seite X / N“ (nur beim Teilen) =====
